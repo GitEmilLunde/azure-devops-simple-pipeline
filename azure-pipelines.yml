@@ -1,0 +1,108 @@
+trigger:
+  - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+stages:
+
+# ─────────────────────────────
+# STAGE 1: SECRET SCANNING
+# ─────────────────────────────
+- stage: SecretScanning
+  displayName: 'Secret Scanning'
+  jobs:
+  - job: DetectSecrets
+    displayName: 'Find passwords i koden'
+    steps:
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: '3.11'
+
+    - script: pip install detect-secrets
+      displayName: 'Installer detect-secrets'
+
+    - script: |
+        detect-secrets scan > .secrets.baseline
+        detect-secrets audit .secrets.baseline
+      displayName: 'Scan efter secrets'
+      continueOnError: true  # Sæt til false i produktion!
+
+# ─────────────────────────────
+# STAGE 2: SAST
+# ─────────────────────────────
+- stage: SAST
+  displayName: 'SAST - Statisk kodeanalyse'
+  dependsOn: SecretScanning
+  jobs:
+  - job: Bandit
+    displayName: 'Kør Bandit sikkerhedsscan'
+    steps:
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: '3.11'
+
+    - script: pip install bandit
+      displayName: 'Installer Bandit'
+
+    - script: |
+        bandit -r app.py -f json -o bandit-rapport.json
+        bandit -r app.py
+      displayName: 'Kør SAST scan'
+      continueOnError: true  # Sæt til false i produktion!
+
+    - task: PublishBuildArtifacts@1
+      inputs:
+        pathToPublish: 'bandit-rapport.json'
+        artifactName: 'sikkerhedsrapport'
+      displayName: 'Gem sikkerhedsrapport'
+
+# ─────────────────────────────
+# STAGE 3: BUILD OG TEST
+# ─────────────────────────────
+- stage: BuildOgTest
+  displayName: 'Build og Test'
+  dependsOn: SAST
+  jobs:
+  - job: Test
+    displayName: 'Kør unit tests'
+    steps:
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: '3.11'
+
+    - script: pip install -r requirements.txt
+      displayName: 'Installer dependencies'
+
+    - script: |
+        pip install pytest pytest-cov
+        pytest test_app.py --junitxml=testresultater.xml
+      displayName: 'Kør tests'
+
+    - task: PublishTestResults@2
+      inputs:
+        testResultsFormat: 'JUnit'
+        testResultsFiles: 'testresultater.xml'
+      displayName: 'Publicer testresultater'
+
+# ─────────────────────────────
+# STAGE 4: DEPLOY
+# ─────────────────────────────
+- stage: Deploy
+  displayName: 'Deploy til Azure App Service'
+  dependsOn: BuildOgTest
+  jobs:
+  - deployment: DeployAPI
+    displayName: 'Deploy Flask API'
+    environment: 'produktion'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: AzureWebApp@1
+            inputs:
+              azureSubscription: 'din-azure-subscription'
+              appType: 'webAppLinux'
+              appName: 'devsecops-demo-api'
+              package: '$(System.DefaultWorkingDirectory)'
+              startUpCommand: 'gunicorn --bind=0.0.0.0:8000 app:app'
