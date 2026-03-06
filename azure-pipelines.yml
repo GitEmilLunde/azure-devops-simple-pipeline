@@ -1,8 +1,9 @@
 trigger:
   - main
 
+# Bruger Microsoft-hosted agent (skiftet fra self-hosted 'MacBook-Agent')
 pool:
-  name: 'MacBook-Agent'
+  vmImage: 'ubuntu-latest'
 
 stages:
 
