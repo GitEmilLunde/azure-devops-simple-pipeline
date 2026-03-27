@@ -86,6 +86,20 @@ stages:
         testResultsFiles: 'testresultater.xml'
       displayName: 'Publicer testresultater'
 
+    - task: ArchiveFiles@2
+      inputs:
+        rootFolderOrFile: '$(System.DefaultWorkingDirectory)'
+        includeRootFolder: false
+        archiveType: 'zip'
+        archiveFile: '$(Build.ArtifactStagingDirectory)/app.zip'
+      displayName: 'Zip applikationen'
+
+    - task: PublishBuildArtifacts@1
+      inputs:
+        pathToPublish: '$(Build.ArtifactStagingDirectory)/app.zip'
+        artifactName: 'drop'
+      displayName: 'Publicer artifact'
+
 # ─────────────────────────────
 # STAGE 4: DEPLOY
 # ─────────────────────────────
@@ -105,5 +119,5 @@ stages:
               azureSubscription: 'ManagedIdentity1'
               appType: 'webAppLinux'
               appName: 'devsecops-demo-api'
-              package: '$(System.DefaultWorkingDirectory)'
+              package: '$(Pipeline.Workspace)/drop/app.zip'
               startupCommand: 'gunicorn --bind=0.0.0.0:8000 app:app'
