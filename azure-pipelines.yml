@@ -114,6 +114,24 @@ stages:
       runOnce:
         deploy:
           steps:
+          - task: AzureCLI@2
+            displayName: 'Opret Web App hvis den ikke eksisterer'
+            inputs:
+              azureSubscription: 'ManagedIdentity1'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                exists=$(az webapp list --resource-group DevSecOpsDemo --query "[?name=='devsecops-demo-api'].name" -o tsv)
+                if [ -z "$exists" ]; then
+                  echo "Web App eksisterer ikke - opretter den..."
+                  az webapp create \
+                    --name devsecops-demo-api \
+                    --resource-group DevSecOpsDemo \
+                    --plan DevSecOpsDemo-plan \
+                    --runtime "PYTHON:3.11"
+                else
+                  echo "Web App eksisterer allerede - springer over..."
+                fi
           - task: AzureWebApp@1
             inputs:
               azureSubscription: 'ManagedIdentity1'
