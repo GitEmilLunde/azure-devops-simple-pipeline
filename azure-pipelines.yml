@@ -27,7 +27,7 @@ stages:
         detect-secrets scan > .secrets.baseline
         detect-secrets audit .secrets.baseline
       displayName: 'Scan efter secrets'
-      continueOnError: true  # Sæt til false i produktion!
+      continueOnError: true
 
 # ─────────────────────────────
 # STAGE 2: SAST
@@ -50,7 +50,7 @@ stages:
         bandit -r app.py -f json -o bandit-rapport.json
         bandit -r app.py
       displayName: 'Kør SAST scan'
-      continueOnError: true  # Sæt til false i produktion!
+      continueOnError: true
 
     - task: PublishBuildArtifacts@1
       inputs:
@@ -121,27 +121,25 @@ stages:
               scriptType: 'bash'
               scriptLocation: 'inlineScript'
               inlineScript: |
-                # Opret App Service Plan hvis den ikke eksisterer
-                plan_exists=$(az appservice plan list --resource-group DevSecOpsDemo --query "[?name=='DevSecOpsDemo-plan'].name" -o tsv)
+                plan_exists=$(az appservice plan list --resource-group MyVm_group --query "[?name=='MyVm_group-plan'].name" -o tsv)
                 if [ -z "$plan_exists" ]; then
                   echo "App Service Plan eksisterer ikke - opretter den..."
                   az appservice plan create \
-                    --name DevSecOpsDemo-plan \
-                    --resource-group DevSecOpsDemo \
+                    --name MyVm_group-plan \
+                    --resource-group MyVm_group \
                     --sku F1 \
                     --is-linux
                 else
                   echo "App Service Plan eksisterer allerede - springer over..."
                 fi
 
-                # Opret Web App hvis den ikke eksisterer
-                app_exists=$(az webapp list --resource-group DevSecOpsDemo --query "[?name=='devsecops-demo-api'].name" -o tsv)
+                app_exists=$(az webapp list --resource-group MyVm_group --query "[?name=='emil-iot-api'].name" -o tsv)
                 if [ -z "$app_exists" ]; then
                   echo "Web App eksisterer ikke - opretter den..."
                   az webapp create \
-                    --name devsecops-demo-api \
-                    --resource-group DevSecOpsDemo \
-                    --plan DevSecOpsDemo-plan \
+                    --name emil-iot-api \
+                    --resource-group MyVm_group \
+                    --plan MyVm_group-plan \
                     --runtime "PYTHON:3.11"
                 else
                   echo "Web App eksisterer allerede - springer over..."
@@ -150,6 +148,7 @@ stages:
             inputs:
               azureSubscription: 'ManagedIdentity1'
               appType: 'webAppLinux'
-              appName: 'devsecops-demo-api'
+              appName: 'emil-iot-api'
               package: '$(Pipeline.Workspace)/drop/app.zip'
               startupCommand: 'gunicorn --bind=0.0.0.0:8000 app:app'
+            
